@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import http, { type Server, type ServerResponse } from "node:http";
 import path from "node:path";
+import MarkdownIt from "markdown-it";
 
 type StartServerOptions = {
   filePath: string;
@@ -23,6 +24,32 @@ type RenderPageOptions = RenderMarkdownResult & {
   title: string;
 };
 
+type MarkdownToken = {
+  type: string;
+  tag: string;
+  content: string;
+  children?: MarkdownToken[] | null;
+  meta?: Record<string, string>;
+  attrGet(name: string): string | null;
+  attrSet(name: string, value: string): void;
+};
+
+const markdownRenderer = new MarkdownIt({
+  html: false,
+  linkify: false,
+  typographer: false
+});
+
+markdownRenderer.renderer.rules.heading_open = (tokens, index, options, _env, self) => {
+  const token = tokens[index] as MarkdownToken;
+  const level = Number(token.tag.slice(1));
+  const id = token.attrGet("id") ?? "";
+  const text = token.meta?.headingText ?? "";
+  const anchor = `<a class="heading-anchor" href="#${escapeAttribute(id)}" aria-label="Link to ${escapeAttribute(text)}">${"#".repeat(level)}</a>`;
+
+  return self.renderToken(tokens, index, options) + anchor;
+};
+
 export function startServer({ filePath, host, port }: StartServerOptions): Server {
   const absoluteFilePath = path.resolve(filePath);
 
@@ -37,6 +64,11 @@ export function startServer({ filePath, host, port }: StartServerOptions): Serve
 
       if (url.pathname === "/app.js") {
         send(res, 200, "text/javascript; charset=utf-8", clientScript);
+        return;
+      }
+
+      if (url.pathname.startsWith("/assets/")) {
+        await sendAsset(res, url.pathname);
         return;
       }
 
@@ -67,101 +99,23 @@ export function startServer({ filePath, host, port }: StartServerOptions): Serve
 export function renderMarkdown(markdown: string): RenderMarkdownResult {
   const headings: Heading[] = [];
   const usedIds = new Map<string, number>();
-  const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
-  const html: string[] = [];
-  let paragraph: string[] = [];
-  let listItems: string[] = [];
-  let blockquote: string[] = [];
-  let codeFence: string | null = null;
-  let codeLines: string[] = [];
+  const tokens = markdownRenderer.parse(markdown, {}) as MarkdownToken[];
 
-  const flushParagraph = () => {
-    if (paragraph.length === 0) return;
-    html.push(`<p>${renderInline(paragraph.join(" "))}</p>`);
-    paragraph = [];
-  };
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.type !== "heading_open") continue;
 
-  const flushList = () => {
-    if (listItems.length === 0) return;
-    html.push(`<ul>${listItems.map((item) => `<li>${renderInline(item)}</li>`).join("")}</ul>`);
-    listItems = [];
-  };
+    const inlineToken = tokens[index + 1];
+    const level = Number(token.tag.slice(1));
+    const text = headingText(inlineToken).trim();
+    const id = uniqueSlug(text, usedIds);
 
-  const flushBlockquote = () => {
-    if (blockquote.length === 0) return;
-    html.push(`<blockquote>${blockquote.map((line) => `<p>${renderInline(line)}</p>`).join("")}</blockquote>`);
-    blockquote = [];
-  };
-
-  const flushTextBlocks = () => {
-    flushParagraph();
-    flushList();
-    flushBlockquote();
-  };
-
-  for (const line of lines) {
-    const fenceMatch = line.match(/^```(.*)$/);
-    if (fenceMatch) {
-      if (codeFence) {
-        html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
-        codeFence = null;
-        codeLines = [];
-      } else {
-        flushTextBlocks();
-        codeFence = fenceMatch[1] || "plain";
-      }
-      continue;
-    }
-
-    if (codeFence) {
-      codeLines.push(line);
-      continue;
-    }
-
-    if (line.trim() === "") {
-      flushTextBlocks();
-      continue;
-    }
-
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-    if (headingMatch) {
-      flushTextBlocks();
-      const level = headingMatch[1].length;
-      const rawText = headingMatch[2].replace(/\s+#+\s*$/, "").trim();
-      const text = stripMarkdown(rawText);
-      const id = uniqueSlug(text, usedIds);
-      headings.push({ id, level, text });
-      html.push(`<h${level} id="${id}"><a class="heading-anchor" href="#${id}" aria-label="Link to ${escapeAttribute(text)}">${"#".repeat(level)}</a>${renderInline(rawText)}</h${level}>`);
-      continue;
-    }
-
-    const listMatch = line.match(/^\s*[-*]\s+(.+)$/);
-    if (listMatch) {
-      flushParagraph();
-      flushBlockquote();
-      listItems.push(listMatch[1]);
-      continue;
-    }
-
-    const blockquoteMatch = line.match(/^>\s?(.+)$/);
-    if (blockquoteMatch) {
-      flushParagraph();
-      flushList();
-      blockquote.push(blockquoteMatch[1]);
-      continue;
-    }
-
-    flushList();
-    flushBlockquote();
-    paragraph.push(line.trim());
+    token.attrSet("id", id);
+    token.meta = { ...token.meta, headingText: text };
+    headings.push({ id, level, text });
   }
 
-  if (codeFence) {
-    html.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
-  }
-  flushTextBlocks();
-
-  return { content: html.join("\n"), headings };
+  return { content: markdownRenderer.renderer.render(tokens, markdownRenderer.options, {}), headings };
 }
 
 function renderPage({ title, content, headings }: RenderPageOptions): string {
@@ -223,23 +177,15 @@ function renderToc(headings: Heading[]): string {
   return html;
 }
 
-function renderInline(text: string): string {
-  let escaped = escapeHtml(text);
-  escaped = escaped.replace(/`([^`]+)`/g, "<code>$1</code>");
-  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  escaped = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match: string, label: string, href: string) => {
-    return `<a href="${escapeAttribute(href)}">${label}</a>`;
-  });
-  return escaped;
-}
-
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1");
+function headingText(token: MarkdownToken | undefined): string {
+  if (!token) return "";
+  if (token.children) {
+    return token.children.map(headingText).join("");
+  }
+  if (["text", "code_inline", "html_inline"].includes(token.type)) {
+    return token.content;
+  }
+  return token.type === "image" ? token.content : "";
 }
 
 function uniqueSlug(text: string, usedIds: Map<string, number>): string {
@@ -258,6 +204,29 @@ function uniqueSlug(text: string, usedIds: Map<string, number>): string {
 function send(res: ServerResponse, status: number, type: string, body: string): void {
   res.writeHead(status, { "Content-Type": type });
   res.end(body);
+}
+
+async function sendAsset(res: ServerResponse, pathname: string): Promise<void> {
+  const relativePath = pathname.replace(/^\/assets\//, "");
+  const assetPath = path.resolve("assets", relativePath);
+  const assetsRoot = path.resolve("assets");
+
+  if (!assetPath.startsWith(assetsRoot + path.sep)) {
+    send(res, 404, "text/plain; charset=utf-8", "Not Found");
+    return;
+  }
+
+  const body = await fs.readFile(assetPath);
+  res.writeHead(200, { "Content-Type": contentType(assetPath) });
+  res.end(body);
+}
+
+function contentType(filePath: string): string {
+  if (filePath.endsWith(".svg")) return "image/svg+xml";
+  if (filePath.endsWith(".png")) return "image/png";
+  if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) return "image/jpeg";
+  if (filePath.endsWith(".webp")) return "image/webp";
+  return "application/octet-stream";
 }
 
 function escapeHtml(value: string): string {
@@ -353,9 +322,10 @@ function setActive(id) {
 
 function updateActiveHeading() {
   let current = headings[0];
+  const activeLine = Math.round(window.innerHeight * 0.38);
 
   for (const heading of headings) {
-    if (heading.getBoundingClientRect().top <= 120) {
+    if (heading.getBoundingClientRect().top <= activeLine) {
       current = heading;
     } else {
       break;
@@ -572,6 +542,32 @@ blockquote {
   padding-left: 14px;
   border-left: 3px solid var(--border);
   color: #475467;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 0 1.1em;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+table {
+  width: 100%;
+  margin: 0 0 1.1em;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+th {
+  background: #f8fafc;
 }
 
 @media (max-width: 760px) {

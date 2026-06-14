@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">Sample image</title>
+  <desc id="desc">A simple local sample image for Markdown rendering.</desc>
+  <rect width="640" height="360" fill="#f8fafc"/>
+  <rect x="48" y="48" width="544" height="264" rx="12" fill="#e6edf8" stroke="#2563eb" stroke-width="4"/>
+  <circle cx="180" cy="168" r="56" fill="#2563eb"/>
+  <rect x="280" y="122" width="208" height="28" rx="6" fill="#111827"/>
+  <rect x="280" y="174" width="280" height="18" rx="5" fill="#667085"/>
+  <rect x="280" y="214" width="188" height="18" rx="5" fill="#667085"/>
+</svg>

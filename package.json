@@ -8,5 +8,8 @@
   "scripts": {
     "start": "node ./bin/md-to-html.ts",
     "test": "node --test"
+  },
+  "dependencies": {
+    "markdown-it": "^14.2.0"
   }
 }
