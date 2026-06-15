@@ -296,6 +296,20 @@ function setActive(id) {
   if (!link) return;
 
   link.classList.add("active");
+  scrollActiveTocLinkIntoView(link);
+}
+
+function scrollActiveTocLinkIntoView(link) {
+  const toc = link.closest(".toc");
+  if (!toc) return;
+
+  const linkRect = link.getBoundingClientRect();
+  const tocRect = toc.getBoundingClientRect();
+  const targetOffset = linkRect.top - tocRect.top - toc.clientHeight / 2 + link.clientHeight / 2;
+  toc.scrollTo({
+    top: toc.scrollTop + targetOffset,
+    behavior: "smooth"
+  });
 }
 
 function updateActiveHeading() {
