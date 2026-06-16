@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { renderMarkdown } from "../src/server.ts";
+import { renderMarkdown } from "../src/markdown.ts";
 
 test("extracts headings and renders heading anchors", () => {
   const result = renderMarkdown(`# Title
