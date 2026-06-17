@@ -2,10 +2,11 @@
 
 import { startServer } from "../src/server.ts";
 
-const args = process.argv.slice(2);
+const args = process.argv.slice(2).filter((arg) => arg !== "--");
 
 if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
   console.log("Usage: md-to-html <file.md> [--port 4321] [--host 127.0.0.1]");
+  console.log("Example: pnpm start -- sample.md");
   process.exit(args.length === 0 ? 1 : 0);
 }
 

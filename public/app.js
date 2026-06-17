@@ -6,6 +6,11 @@ const headings = links
 const visibleHeadingLevels = new Set(["H1", "H2", "H3"]);
 const activeHeadings = headings.filter((heading) => visibleHeadingLevels.has(heading.tagName));
 
+const reloadEvents = new EventSource("/events");
+reloadEvents.addEventListener("reload", () => {
+  window.location.reload();
+});
+
 let isResizingToc = false;
 let savedTocWidth = null;
 
