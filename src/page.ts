@@ -24,6 +24,11 @@ export function renderPage({ title, content, headings }: RenderPageOptions): str
   </aside>
   <div class="toc-resizer" aria-hidden="true"></div>
   <main>
+    <div class="viewer-toolbar">
+      <button class="mode-toggle" type="button" aria-pressed="false">編集</button>
+      <span class="save-status" aria-live="polite"></span>
+    </div>
+    <textarea class="markdown-editor" spellcheck="false" hidden></textarea>
     <article>
       ${content}
     </article>

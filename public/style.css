@@ -15,6 +15,7 @@
 }
 
 html {
+  overflow-anchor: none;
   scroll-behavior: smooth;
 }
 
@@ -141,6 +142,62 @@ main {
   width: 100%;
   max-width: 920px;
   padding: 40px 48px 80px;
+}
+
+.viewer-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -8px 0 24px;
+  padding: 8px 0;
+  background: var(--bg);
+}
+
+.mode-toggle {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.mode-toggle:hover {
+  background: #f8fafc;
+}
+
+.save-status {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.markdown-editor {
+  display: block;
+  width: 100%;
+  min-height: calc(100vh - 160px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  resize: vertical;
+  color: var(--text);
+  background: #ffffff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.markdown-editor[hidden] {
+  display: none;
+}
+
+.markdown-editor:focus {
+  outline: 0;
 }
 
 article {

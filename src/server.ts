@@ -4,7 +4,7 @@ import http, { type IncomingMessage, type Server, type ServerResponse } from "no
 import path from "node:path";
 
 import { renderMarkdown } from "./markdown.ts";
-import { renderPage } from "./page.ts";
+import { renderPage, renderToc } from "./page.ts";
 
 export type StartServerOptions = {
   filePath: string;
@@ -25,6 +25,16 @@ export function startServer({ filePath, host, port }: StartServerOptions): Serve
 
       if (url.pathname === "/events") {
         sendEvents(req, res, reloadClients);
+        return;
+      }
+
+      if (url.pathname === "/source") {
+        await handleSource(req, res, absoluteFilePath);
+        return;
+      }
+
+      if (url.pathname === "/content") {
+        await handleContent(res, absoluteFilePath);
         return;
       }
 
@@ -135,6 +145,55 @@ function broadcastReload(reloadClients: Set<ServerResponse>): void {
   }
 }
 
+export async function handleSource(
+  req: IncomingMessage,
+  res: ServerResponse,
+  filePath: string,
+): Promise<void> {
+  if (req.method === "GET") {
+    const markdown = await fs.readFile(filePath, "utf8");
+    send(res, 200, "text/markdown; charset=utf-8", markdown);
+    return;
+  }
+
+  if (req.method === "PUT") {
+    const markdown = await readRequestBody(req);
+    await fs.writeFile(filePath, markdown, "utf8");
+    send(res, 204, "text/plain; charset=utf-8", "");
+    return;
+  }
+
+  res.writeHead(405, {
+    Allow: "GET, PUT",
+    "Content-Type": "text/plain; charset=utf-8",
+  });
+  res.end("Method Not Allowed");
+}
+
+export async function handleContent(res: ServerResponse, filePath: string): Promise<void> {
+  const markdown = await fs.readFile(filePath, "utf8");
+  const document = renderMarkdown(markdown);
+  send(
+    res,
+    200,
+    "application/json; charset=utf-8",
+    JSON.stringify({
+      content: document.content,
+      toc: renderToc(document.headings),
+    }),
+  );
+}
+
+async function readRequestBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 async function sendStaticFile(
   res: ServerResponse,
   root: string,
@@ -149,7 +208,10 @@ async function sendStaticFile(
   }
 
   const body = await fs.readFile(filePath);
-  res.writeHead(200, { "Content-Type": contentType(filePath) });
+  res.writeHead(200, {
+    "Cache-Control": "no-store",
+    "Content-Type": contentType(filePath),
+  });
   res.end(body);
 }
 

@@ -38,6 +38,20 @@ test("escapes toc text and page title", () => {
   expect(page).toContain('<div class="toc-title">sample &quot;x&quot;.md</div>');
 });
 
+test("renders edit mode controls", () => {
+  const page = renderPage({
+    title: "sample.md",
+    content: "<h1>Sample</h1>",
+    headings: [{ id: "sample", level: 1, text: "Sample" }],
+  });
+
+  expect(page).toContain(
+    '<button class="mode-toggle" type="button" aria-pressed="false">編集</button>',
+  );
+  expect(page).toContain('<span class="save-status" aria-live="polite"></span>');
+  expect(page).toContain('<textarea class="markdown-editor" spellcheck="false" hidden></textarea>');
+});
+
 test("renders empty toc state", () => {
   expect(renderToc([])).toBe('<p class="toc-empty">No headings</p>');
 });
