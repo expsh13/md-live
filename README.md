@@ -54,7 +54,19 @@ pnpm start -- sample.md --port 4322
 公開後は package runner から実行できます。
 
 ```sh
-pnpm dlx md-live ./memo.md
+pnpm dlx @expsh13/md-live ./memo.md
+```
+
+`npx` でも実行できます。
+
+```sh
+npx @expsh13/md-live ./memo.md
+```
+
+初回 publish 時は scoped package を public にする必要があります。
+
+```sh
+npm publish --access public
 ```
 
 ## Shortcuts

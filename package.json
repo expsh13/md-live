@@ -1,5 +1,5 @@
 {
-  "name": "md-live",
+  "name": "@expsh13/md-live",
   "version": "0.1.0",
   "description": "Local live Markdown viewer and editor with table-of-contents navigation.",
   "type": "module",
