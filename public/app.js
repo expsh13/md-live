@@ -16,6 +16,7 @@ reloadEvents.addEventListener("reload", () => {
 
 let isResizingToc = false;
 let savedTocWidth = null;
+let lastOpenTocWidth = 280;
 let isEditing = false;
 let saveTimer = null;
 let latestSave = Promise.resolve();
@@ -46,11 +47,28 @@ function applyTocWidth(clientX) {
   const width = Math.min(Math.max(clientX, 0), 520);
   document.documentElement.style.setProperty("--toc-width", width + "px");
   document.body.classList.toggle("toc-closed", width <= 16);
+  if (width > 16) {
+    lastOpenTocWidth = width;
+  }
   try {
     localStorage.setItem("toc-width", String(width));
   } catch {
     // Ignore storage failures; resizing still works for the current page.
   }
+}
+
+function currentTocWidth() {
+  const width = getComputedStyle(document.documentElement).getPropertyValue("--toc-width");
+  return Number.parseFloat(width) || 0;
+}
+
+function toggleToc() {
+  if (currentTocWidth() <= 16) {
+    applyTocWidth(lastOpenTocWidth);
+    return;
+  }
+
+  applyTocWidth(0);
 }
 
 function startTocResize(event) {
@@ -145,8 +163,17 @@ modeToggle?.addEventListener("pointerdown", () => {
 });
 
 window.addEventListener("keydown", async (event) => {
-  if (event.key.toLowerCase() !== "e") return;
   if (!event.metaKey && !event.ctrlKey) return;
+
+  const key = event.key.toLowerCase();
+
+  if (key === "b") {
+    event.preventDefault();
+    toggleToc();
+    return;
+  }
+
+  if (key !== "e") return;
 
   event.preventDefault();
   if (!isEditing) {
