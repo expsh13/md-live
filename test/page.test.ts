@@ -50,6 +50,7 @@ test("renders edit mode controls", () => {
   );
   expect(page).toContain('<span class="save-status" aria-live="polite"></span>');
   expect(page).toContain('<textarea class="markdown-editor" spellcheck="false" hidden></textarea>');
+  expect(page).toContain('<script type="module" src="/public/app.js"></script>');
 });
 
 test("renders empty toc state", () => {

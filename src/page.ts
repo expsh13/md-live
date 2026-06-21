@@ -33,7 +33,7 @@ export function renderPage({ title, content, headings }: RenderPageOptions): str
       ${content}
     </article>
   </main>
-  <script src="/public/app.js"></script>
+  <script type="module" src="/public/app.js"></script>
 </body>
 </html>`;
 }

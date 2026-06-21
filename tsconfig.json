@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    "allowJs": true,
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "noEmit": true,
@@ -8,5 +9,5 @@
     "target": "ES2024",
     "types": ["node"]
   },
-  "include": ["bin/**/*.ts", "src/**/*.ts", "test/**/*.ts"]
+  "include": ["bin/**/*.ts", "src/**/*.ts", "test/**/*.ts", "public/**/*.js"]
 }
