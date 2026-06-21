@@ -16,12 +16,14 @@
 
 ## Requirements
 
-- Node.js `24.16.0`
+- Node.js `24.0.0` or later
 - pnpm `11.7.0`
 
 このリポジトリは Vite+ を使って `test` / `lint` / `format` / `typecheck` を実行します。
 
 ## Usage
+
+### Clone
 
 依存関係をインストールします。
 
@@ -45,6 +47,14 @@ http://127.0.0.1:4321
 
 ```sh
 pnpm start -- sample.md --port 4322
+```
+
+### Package
+
+公開後は package runner から実行できます。
+
+```sh
+pnpm dlx md-live ./memo.md
 ```
 
 ## Shortcuts

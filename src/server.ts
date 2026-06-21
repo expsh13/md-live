@@ -2,9 +2,13 @@ import { watch, type FSWatcher } from "node:fs";
 import fs from "node:fs/promises";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { renderMarkdown } from "./markdown.ts";
 import { renderPage, renderToc } from "./page.ts";
+
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const maxSourceBytes = 5 * 1024 * 1024;
 
 export type StartServerOptions = {
   filePath: string;
@@ -14,6 +18,7 @@ export type StartServerOptions = {
 
 export function startServer({ filePath, host, port }: StartServerOptions): Server {
   const absoluteFilePath = path.resolve(filePath);
+  const expectedOrigin = `http://${host}:${port}`;
   const reloadClients = new Set<ServerResponse>();
   const watcher = watchMarkdownFile(absoluteFilePath, () => {
     broadcastReload(reloadClients);
@@ -29,7 +34,7 @@ export function startServer({ filePath, host, port }: StartServerOptions): Serve
       }
 
       if (url.pathname === "/source") {
-        await handleSource(req, res, absoluteFilePath);
+        await handleSource(req, res, absoluteFilePath, expectedOrigin);
         return;
       }
 
@@ -39,12 +44,20 @@ export function startServer({ filePath, host, port }: StartServerOptions): Serve
       }
 
       if (url.pathname.startsWith("/assets/")) {
-        await sendStaticFile(res, "assets", url.pathname.replace(/^\/assets\//, ""));
+        await sendStaticFile(
+          res,
+          [path.join(path.dirname(absoluteFilePath), "assets"), path.join(packageRoot, "assets")],
+          url.pathname.replace(/^\/assets\//, ""),
+        );
         return;
       }
 
       if (url.pathname.startsWith("/public/")) {
-        await sendStaticFile(res, "public", url.pathname.replace(/^\/public\//, ""));
+        await sendStaticFile(
+          res,
+          [path.join(packageRoot, "public")],
+          url.pathname.replace(/^\/public\//, ""),
+        );
         return;
       }
 
@@ -149,6 +162,7 @@ export async function handleSource(
   req: IncomingMessage,
   res: ServerResponse,
   filePath: string,
+  expectedOrigin?: string,
 ): Promise<void> {
   if (req.method === "GET") {
     const markdown = await fs.readFile(filePath, "utf8");
@@ -157,7 +171,12 @@ export async function handleSource(
   }
 
   if (req.method === "PUT") {
-    const markdown = await readRequestBody(req);
+    if (!isAllowedOrigin(req, expectedOrigin)) {
+      send(res, 403, "text/plain; charset=utf-8", "Forbidden");
+      return;
+    }
+
+    const markdown = await readRequestBody(req, maxSourceBytes);
     await fs.writeFile(filePath, markdown, "utf8");
     send(res, 204, "text/plain; charset=utf-8", "");
     return;
@@ -166,6 +185,7 @@ export async function handleSource(
   res.writeHead(405, {
     Allow: "GET, PUT",
     "Content-Type": "text/plain; charset=utf-8",
+    ...securityHeaders(),
   });
   res.end("Method Not Allowed");
 }
@@ -184,11 +204,22 @@ export async function handleContent(res: ServerResponse, filePath: string): Prom
   );
 }
 
-async function readRequestBody(req: IncomingMessage): Promise<string> {
+function isAllowedOrigin(req: IncomingMessage, expectedOrigin?: string): boolean {
+  const origin = req.headers.origin;
+  return !origin || !expectedOrigin || origin === expectedOrigin;
+}
+
+async function readRequestBody(req: IncomingMessage, maxBytes: number): Promise<string> {
   const chunks: Buffer[] = [];
+  let size = 0;
 
   for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.byteLength;
+    if (size > maxBytes) {
+      throw new Error(`Request body is too large. Max size is ${maxBytes} bytes.`);
+    }
+    chunks.push(buffer);
   }
 
   return Buffer.concat(chunks).toString("utf8");
@@ -196,28 +227,48 @@ async function readRequestBody(req: IncomingMessage): Promise<string> {
 
 async function sendStaticFile(
   res: ServerResponse,
-  root: string,
+  roots: string[],
   relativePath: string,
 ): Promise<void> {
-  const filePath = path.resolve(root, relativePath);
-  const rootPath = path.resolve(root);
+  for (const root of roots) {
+    const filePath = path.resolve(root, relativePath);
+    const rootPath = path.resolve(root);
 
-  if (!filePath.startsWith(rootPath + path.sep)) {
-    send(res, 404, "text/plain; charset=utf-8", "Not Found");
-    return;
+    if (!filePath.startsWith(rootPath + path.sep)) {
+      continue;
+    }
+
+    try {
+      const body = await fs.readFile(filePath);
+      res.writeHead(200, {
+        "Cache-Control": "no-store",
+        "Content-Type": contentType(filePath),
+        ...securityHeaders(),
+      });
+      res.end(body);
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        throw error;
+      }
+    }
   }
 
-  const body = await fs.readFile(filePath);
-  res.writeHead(200, {
-    "Cache-Control": "no-store",
-    "Content-Type": contentType(filePath),
-  });
-  res.end(body);
+  send(res, 404, "text/plain; charset=utf-8", "Not Found");
 }
 
 function send(res: ServerResponse, status: number, type: string, body: string): void {
-  res.writeHead(status, { "Content-Type": type });
+  res.writeHead(status, { "Content-Type": type, ...securityHeaders() });
   res.end(body);
+}
+
+function securityHeaders(): Record<string, string> {
+  return {
+    "Content-Security-Policy":
+      "default-src 'self'; base-uri 'none'; frame-ancestors 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: http: https:",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+  };
 }
 
 function contentType(filePath: string): string {

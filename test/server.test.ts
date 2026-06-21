@@ -29,6 +29,36 @@ test("source endpoint writes raw markdown", async () => {
   expect(await fs.readFile(filePath, "utf8")).toBe("# After");
 });
 
+test("source endpoint rejects writes from unexpected origin", async () => {
+  const filePath = await writeTempMarkdown("# Before");
+  const res = createMockResponse();
+
+  await handleSource(
+    createMockRequest("PUT", "# After", { origin: "http://example.com" }),
+    res,
+    filePath,
+    "http://127.0.0.1:4321",
+  );
+
+  expect(res.statusCode).toBe(403);
+  expect(await fs.readFile(filePath, "utf8")).toBe("# Before");
+});
+
+test("source endpoint allows writes from expected origin", async () => {
+  const filePath = await writeTempMarkdown("# Before");
+  const res = createMockResponse();
+
+  await handleSource(
+    createMockRequest("PUT", "# After", { origin: "http://127.0.0.1:4321" }),
+    res,
+    filePath,
+    "http://127.0.0.1:4321",
+  );
+
+  expect(res.statusCode).toBe(204);
+  expect(await fs.readFile(filePath, "utf8")).toBe("# After");
+});
+
 test("content endpoint returns rendered markdown and toc", async () => {
   const filePath = await writeTempMarkdown(`# Title
 
@@ -45,6 +75,17 @@ test("content endpoint returns rendered markdown and toc", async () => {
   expect(JSON.parse(res.body).content).toContain('<h1 id="title">');
 });
 
+test("responses include basic security headers", async () => {
+  const filePath = await writeTempMarkdown("# Title");
+  const res = createMockResponse();
+
+  await handleContent(res, filePath);
+
+  expect(res.headers["Content-Security-Policy"]).toContain("default-src 'self'");
+  expect(res.headers["Referrer-Policy"]).toBe("no-referrer");
+  expect(res.headers["X-Content-Type-Options"]).toBe("nosniff");
+});
+
 async function writeTempMarkdown(markdown: string): Promise<string> {
   const directory = await fs.mkdtemp(path.join(tmpdir(), "md-live-"));
   const filePath = path.join(directory, "sample.md");
@@ -52,9 +93,17 @@ async function writeTempMarkdown(markdown: string): Promise<string> {
   return filePath;
 }
 
-function createMockRequest(method: string, body = ""): IncomingMessage {
-  const req = Readable.from([body]) as Readable & { method: string };
+function createMockRequest(
+  method: string,
+  body = "",
+  headers: Record<string, string> = {},
+): IncomingMessage {
+  const req = Readable.from([body]) as Readable & {
+    headers: Record<string, string>;
+    method: string;
+  };
   req.method = method;
+  req.headers = headers;
   return req as unknown as IncomingMessage;
 }
 
