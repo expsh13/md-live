@@ -1,4 +1,4 @@
-const headingStorageKey = "md-to-html-heading-id";
+const headingStorageKey = "md-live-heading-id";
 
 let getIsEditing = () => false;
 let getCurrentHeadingId = () => null;

@@ -15,7 +15,7 @@ export type ParseStartOptionsResult =
     };
 
 export const usage = [
-  "Usage: md-to-html <file.md> [--port 4321] [--host 127.0.0.1]",
+  "Usage: md-live <file.md> [--port 4321] [--host 127.0.0.1]",
   "Example: pnpm start -- sample.md",
 ];
 

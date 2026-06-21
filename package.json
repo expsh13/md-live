@@ -1,12 +1,12 @@
 {
-  "name": "md-to-html",
+  "name": "md-live",
   "version": "0.1.0",
   "type": "module",
   "bin": {
-    "md-to-html": "./bin/md-to-html.ts"
+    "md-live": "./bin/md-live.ts"
   },
   "scripts": {
-    "start": "node ./bin/md-to-html.ts",
+    "start": "node ./bin/md-live.ts",
     "check": "vp check",
     "format": "vp fmt --write",
     "format:check": "vp fmt --check",

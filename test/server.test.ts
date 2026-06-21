@@ -46,7 +46,7 @@ test("content endpoint returns rendered markdown and toc", async () => {
 });
 
 async function writeTempMarkdown(markdown: string): Promise<string> {
-  const directory = await fs.mkdtemp(path.join(tmpdir(), "md-to-html-"));
+  const directory = await fs.mkdtemp(path.join(tmpdir(), "md-live-"));
   const filePath = path.join(directory, "sample.md");
   await fs.writeFile(filePath, markdown, "utf8");
   return filePath;

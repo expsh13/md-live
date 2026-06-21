@@ -1,6 +1,10 @@
 import { expect, test } from "vite-plus/test";
 
-import { parseStartOptions } from "../src/cli.ts";
+import { parseStartOptions, usage } from "../src/cli.ts";
+
+test("uses md-live in usage text", () => {
+  expect(usage[0]).toBe("Usage: md-live <file.md> [--port 4321] [--host 127.0.0.1]");
+});
 
 test("parses default start options", () => {
   expect(parseStartOptions(["sample.md"])).toEqual({
